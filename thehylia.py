@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# A script to download full soundtracks from khinsider.
+# A script to download full soundtracks from The Hylia.
 
 # __future__ import for forwards compatibility with Python 3
 from __future__ import print_function
@@ -56,17 +56,19 @@ if __name__ == '__main__':
 # ------
 
 import requests
+from urllib import unquote
 from bs4 import BeautifulSoup
 
 import sys
 import os
 
 import re # For the syntax error in the HTML.
+from urllib import unquote
 
 def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
 
-    # --- Fix errors in khinsider's HTML
+    # --- Fix errors in thehylia's HTML
     removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
     # ---
     
@@ -84,19 +86,18 @@ class NonexistentSoundtrackError(Exception):
         return s
 
 def getOstSoup(ostName):
-    url = u"http://downloads.khinsider.com/game-soundtracks/album/" + ostName
+    url = u"http://anime.thehylia.com/soundtracks/album/" + ostName
     soup = getSoup(url)
-    if soup.find(id='EchoTopic').find('p').string == "No such album":
-        # The EchoTopic and p exist even if the soundtrack doesn't, so no
+    if soup.find(id='content_container').find('p').string == "No such album":
+        # The content_container and p exist even if the soundtrack doesn't, no
         # need for error handling here.
         raise NonexistentSoundtrackError(ostName)
     return soup
 
 def getSongPageUrlList(ostName):
     soup = getOstSoup(ostName)
-    table = soup('table')[5] # This might change if the page layout ever changes.
-    trs = table('tr')[1:] # The first tr is a header.
-    anchors = [tr('td')[1].find('a') for tr in trs]
+    table = soup('table')[3] # Might change if the page layout ever changes.
+    anchors = table('a')
     urls = [a['href'] for a in anchors]
     return urls
 
@@ -115,10 +116,14 @@ def getSongInfo(songPageUrl):
     info.append(getSongUrl(soup))
     return info
 def getSongName(songPage):
-    name = songPage('p')[2]('b')[1].get_text()
+    extensionRe = re.compile(r'^.*\.\S+$')
+    name = songPage.find(id='content_container')('p')[3]('b')[1].get_text()
+    if not extensionRe.match(name):
+        name = unquote(getSongUrl(songPage).split('/')[-1])
     return name
 def getSongUrl(songPage):
-    url = songPage('p')[3].find('a')['href'] # Download link.
+    url = songPage.find(id='content_container').find('table',
+        class_='blog').find('div').find_all('b')[-1].find('a')['href']
     return url
 
 def download(ostName, path="", verbose=False):
@@ -156,8 +161,9 @@ def downloadSong(songUrl, path, name="song", numTries=3, verbose=False):
 
 def search(term):
     """Return a list of OST IDs for the search term `term`."""
-    soup = getSoup("http://downloads.khinsider.com/search", params={'search': term})
-    anchors = soup('p')[1]('a')
+    soup = getSoup(u"http://anime.thehylia.com/search",
+        params={'search': term})
+    anchors = soup.find(id='content_container')('p')[3]('a')
     ostNames = [a['href'].split('/')[-1] for a in anchors]
 
     return ostNames
@@ -208,7 +214,7 @@ if __name__ == '__main__':
                 os.rmdir(outPath)
             return
         except requests.ConnectionError:
-            print("Could not connect to KHInsider.")
+            print("Could not connect to The Hylia.")
             print("Make sure you have a working internet connection.")
 
             if madeDir:
