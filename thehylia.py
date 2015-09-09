@@ -56,14 +56,16 @@ if __name__ == '__main__':
 # ------
 
 import requests
-from urllib import unquote
 from bs4 import BeautifulSoup
 
 import sys
 import os
 
 import re # For the syntax error in the HTML.
-from urllib import unquote
+try:
+    from urllib import unquote
+except ImportError: # Python 3
+    from urllib.parse import unquote
 
 def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
