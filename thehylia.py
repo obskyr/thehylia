@@ -5,6 +5,7 @@
 
 # __future__ import for forwards compatibility with Python 3
 from __future__ import print_function
+from __future__ import unicode_literals
 
 # --- Install prerequisites---
 
@@ -71,7 +72,7 @@ def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
 
     # --- Fix errors in thehylia's HTML
-    removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
+    removeRe = re.compile(r"^</td>\s*$", re.MULTILINE)
     # ---
     
     return BeautifulSoup(re.sub(removeRe, b'', r.content), 'html.parser')
@@ -84,11 +85,11 @@ class NonexistentSoundtrackError(Exception):
         if not self.ostName or len(self.ostName) > 80:
             s = "The soundtrack does not exist."
         else:
-            s = u"The soundtrack \"{ost}\" does not exist.".format(ost=self.ostName)
+            s = "The soundtrack \"{ost}\" does not exist.".format(ost=self.ostName)
         return s
 
 def getOstSoup(ostName):
-    url = u"http://anime.thehylia.com/soundtracks/album/" + ostName
+    url = "http://anime.thehylia.com/soundtracks/album/" + ostName
     soup = getSoup(url)
     if soup.find(id='content_container').find('p').string == "No such album":
         # The content_container and p exist even if the soundtrack doesn't, no
@@ -138,20 +139,20 @@ def download(ostName, path="", verbose=False):
 def downloadSong(songUrl, path, name="song", numTries=3, verbose=False):
     """Download a single song at `songUrl` to `path`."""
     if verbose:
-        print(u"Downloading {}...".format(name))
+        print("Downloading {}...".format(name))
 
     tries = 0
     while tries < numTries:
         try:
             if tries and verbose:
-                print(u"Couldn't download {}. Trying again...".format(name))
+                print("Couldn't download {}. Trying again...".format(name))
             song = requests.get(songUrl)
             break
         except requests.ConnectionError:
             tries += 1
     else:
         if verbose:
-            print(u"Couldn't download {}. Skipping over.".format(name))
+            print("Couldn't download {}. Skipping over.".format(name))
         return
 
     try:
@@ -159,11 +160,11 @@ def downloadSong(songUrl, path, name="song", numTries=3, verbose=False):
             outfile.write(song.content)
     except IOError:
         if verbose:
-            print(u"Couldn't save {}. Check your permissions.".format(name))
+            print("Couldn't save {}. Check your permissions.".format(name))
 
 def search(term):
     """Return a list of OST IDs for the search term `term`."""
-    soup = getSoup(u"http://anime.thehylia.com/search",
+    soup = getSoup("http://anime.thehylia.com/search",
         params={'search': term})
     anchors = soup.find(id='content_container')('p')[3]('a')
     ostNames = [a['href'].split('/')[-1] for a in anchors]
@@ -176,7 +177,7 @@ if __name__ == '__main__':
     def doIt(): # Only in a function to be able to stop after errors, really.
         try:
             ostName = sys.argv[1].decode(sys.getfilesystemencoding())
-        except AttributeError: # Python 3 doesn't have str.encode.
+        except AttributeError: # Python 3's argv is in Unicode
             ostName = sys.argv[1]
         except IndexError:
             print("No soundtrack specified! As the first parameter, use the name the soundtrack uses in its URL.")
@@ -204,7 +205,7 @@ if __name__ == '__main__':
                 searchTerm = ' '.join(sys.argv[1:]).replace('-', ' ')
             
             searchResults = search(searchTerm)
-            print(u"\nThe soundtrack \"{}\" does not seem to exist.".format(ostName))
+            print("\nThe soundtrack \"{}\" does not seem to exist.".format(ostName))
 
             if searchResults: # aww yeah we gon' do some searchin'
                 print()
