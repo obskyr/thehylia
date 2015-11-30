@@ -90,12 +90,26 @@ def print(*args, **kwargs):
 
 def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
+    content = r.content
 
     # --- Fix errors in thehylia's HTML
     removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
+    content = removeRe.sub(b'', content)
+    
+    badDivTag = '<div style="padding: 7px; float: left;">'
+    badDivLength = len(badDivTag)
+    badDivStart = content.find(badDivTag)
+    while badDivStart != -1:
+        badAEnd = content.find('</a>', badDivStart)
+        content = content[:badAEnd] + content[badAEnd + 4:]
+        
+        badDivEnd = content.find('</div>', badDivStart)
+        content = content[:badDivEnd + 6] + '</a>' + content[badDivEnd + 6:]
+        
+        badDivStart = content.find(badDivTag, badDivStart + badDivLength)
     # ---
     
-    return BeautifulSoup(re.sub(removeRe, b'', r.content), 'html.parser')
+    return BeautifulSoup(content, 'html.parser')
 
 class NonexistentSoundtrackError(Exception):
     def __init__(self, ostName=""):
@@ -108,28 +122,40 @@ class NonexistentSoundtrackError(Exception):
             s = "The soundtrack \"{ost}\" does not exist.".format(ost=self.ostName)
         return s
 
-def getOstSoup(ostName):
+def getOstContentSoup(ostName):
     url = "http://anime.thehylia.com/soundtracks/album/" + ostName
     soup = getSoup(url)
-    if soup.find(id='content_container').find('p').string == "No such album":
+    contentSoup = soup.find(id='content_container')('div')[1].find('div')
+    if contentSoup.find('p').string == "No such album":
         # The content_container and p exist even if the soundtrack doesn't, no
         # need for error handling here.
         raise NonexistentSoundtrackError(ostName)
-    return soup
+    return contentSoup
 
-def getSongPageUrlList(ostName):
-    soup = getOstSoup(ostName)
-    table = soup('table')[3] # Might change if the page layout ever changes.
+def getSongPageUrlList(soup):
+    table = soup('table')[0]
     anchors = table('a')
     urls = [a['href'] for a in anchors]
     return urls
 
-def getSongList(ostName):
+def getImageInfo(soup):
+    images = []
+    for a in soup('p')[1]('a'):
+        url = a['href']
+        name = url.rsplit('/', 1)[1]
+        info = [name, url]
+        images.append(info)
+    return images
+
+def getFileList(ostName):
     """Get a list of songs from the OST with ID `ostName`."""
     # Each entry is in the format [name, url].
-    songPageUrls = getSongPageUrlList(ostName)
-    songList = [getSongInfo(url) for url in songPageUrls]
-    return songList
+    soup = getOstContentSoup(ostName)
+    songPageUrls = getSongPageUrlList(soup)
+    songs = [getSongInfo(url) for url in songPageUrls]
+    images = getImageInfo(soup)
+    files = songs + images
+    return files
 
 def getSongInfo(songPageUrl):
     """Get the file name and URL of the song at `songPageUrl`. Return a list of [songName, songUrl]."""
@@ -153,7 +179,7 @@ def download(ostName, path="", verbose=False):
     """Download an OST with the ID `ostName` to `path`."""
     if verbose:
         print("Getting song list...")
-    songInfos = getSongList(ostName)
+    songInfos = getFileList(ostName)
     for name, url in songInfos:
         downloadSong(url, path, name, verbose=verbose)
 def downloadSong(songUrl, path, name="song", numTries=3, verbose=False):
