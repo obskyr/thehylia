@@ -96,15 +96,15 @@ def getSoup(*args, **kwargs):
     removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
     content = removeRe.sub(b'', content)
     
-    badDivTag = '<div style="padding: 7px; float: left;">'
+    badDivTag = b'<div style="padding: 7px; float: left;">'
     badDivLength = len(badDivTag)
     badDivStart = content.find(badDivTag)
     while badDivStart != -1:
-        badAEnd = content.find('</a>', badDivStart)
+        badAEnd = content.find(b'</a>', badDivStart)
         content = content[:badAEnd] + content[badAEnd + 4:]
         
-        badDivEnd = content.find('</div>', badDivStart)
-        content = content[:badDivEnd + 6] + '</a>' + content[badDivEnd + 6:]
+        badDivEnd = content.find(b'</div>', badDivStart)
+        content = content[:badDivEnd + 6] + b'</a>' + content[badDivEnd + 6:]
         
         badDivStart = content.find(badDivTag, badDivStart + badDivLength)
     # ---
