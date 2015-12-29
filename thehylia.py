@@ -126,9 +126,7 @@ def getOstContentSoup(ostName):
     url = "http://anime.thehylia.com/soundtracks/album/" + ostName
     soup = getSoup(url)
     contentSoup = soup.find(id='content_container')('div')[1].find('div')
-    if contentSoup.find('p').string == "No such album":
-        # The content_container and p exist even if the soundtrack doesn't, no
-        # need for error handling here.
+    if contentSoup.find('p', string="No such album"):
         raise NonexistentSoundtrackError(ostName)
     return contentSoup
 
@@ -140,7 +138,8 @@ def getSongPageUrlList(soup):
 
 def getImageInfo(soup):
     images = []
-    for a in soup('p')[1]('a'):
+    anchors = soup.find('div')('a', target='_blank')
+    for a in anchors:
         url = a['href']
         name = url.rsplit('/', 1)[1]
         info = [name, url]
@@ -166,7 +165,9 @@ def getSongInfo(songPageUrl):
     return info
 def getSongName(songPage):
     extensionRe = re.compile(r'^.*\.\S+$')
-    name = songPage.find(id='content_container')('p')[3]('b')[1].get_text()
+    infoParagraph = songPage.find(id='content_container').find(
+        lambda t: t.name == 'p' and next(t.stripped_strings) == 'Album name:')
+    name = infoParagraph('b')[1].get_text()
     if not extensionRe.match(name):
         name = unquote(getSongUrl(songPage).split('/')[-1])
     return name
@@ -212,7 +213,10 @@ def search(term):
     """Return a list of OST IDs for the search term `term`."""
     soup = getSoup("http://anime.thehylia.com/search",
         params={'search': term})
-    anchors = soup.find(id='content_container')('p')[3]('a')
+
+    headerParagraph = soup.find(id='content_container').find('p',
+        string=re.compile(r"^Found [0-9]+ matching albums for \".*\"\.$"))
+    anchors = headerParagraph.find_next_sibling('p')('a')
     ostNames = [a['href'].split('/')[-1] for a in anchors]
 
     return ostNames
@@ -251,8 +255,6 @@ if __name__ == '__main__':
                 searchTerm = ' '.join(sys.argv[1:]).replace('-', ' ')
             
             searchResults = search(searchTerm)
-            # I don't know, maybe in some crazy circumstance the encoding for
-            # arguments doesn't match stdout's encoding.
             print("\nThe soundtrack \"{}\" does not seem to exist.".format(
                 ostName))
 
