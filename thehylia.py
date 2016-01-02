@@ -138,7 +138,7 @@ def getSongPageUrlList(soup):
 
 def getImageInfo(soup):
     images = []
-    anchors = soup.find('div')('a', target='_blank')
+    anchors = soup('a', target='_blank')
     for a in anchors:
         url = a['href']
         name = url.rsplit('/', 1)[1]
