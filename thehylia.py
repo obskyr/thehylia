@@ -164,7 +164,10 @@ def getSongInfo(songPageUrl):
     info.append(getSongUrl(soup))
     return info
 def getSongName(songPage):
-    extensionRe = re.compile(r'^.*\.\S+$')
+    # Who knows, some obscure soundtrack may use other extensions than mp3/jpg.
+    extensions = ('mp3', 'jpg', 'jpeg', 'ogg', 'aac', 'm4a', 'png')
+    extensionRe = re.compile(r'^.*\.(' + '|'.join(extensions) + r')$',
+        re.IGNORECASE)
     infoParagraph = songPage.find(id='content_container').find(
         lambda t: t.name == 'p' and next(t.stripped_strings) == 'Album name:')
     name = infoParagraph('b')[1].get_text()
