@@ -13,6 +13,8 @@ thehylia.download('yakitate-japan-original-soundtrack')
 # And bam, you've got the Yakitate!! Japan soundtrack!
 ```
 
+For video game music, [check out `khinsider.py`](https://github.com/obskyr/khinsider).
+
 Carefully put together by [@obskyr](http://twitter.com/obskyr)!
 
 ## Usage
