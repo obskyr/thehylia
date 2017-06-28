@@ -204,7 +204,7 @@ def downloadSong(songUrl, path, name="song", numTries=3, verbose=False,
         numberStr = ""
         if songNumber is not None and totalSongs is not None:
             numberStr = "{}/{}: ".format(
-                str(songNumber + 1).zfill(len(str(totalSongs))),
+                str(songNumber).zfill(len(str(totalSongs))),
                 str(totalSongs)
             )
         print("Downloading {}{}...".format(numberStr, name))
