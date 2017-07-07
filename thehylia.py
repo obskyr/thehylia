@@ -69,7 +69,7 @@ except ImportError: # Python 3
     from urllib.parse import unquote
 
 # Different printin' for different Pythons.
-normal_print = print
+normalPrint = print
 def print(*args, **kwargs):
     encoding = sys.stdout.encoding or 'utf-8'
     if sys.version_info[0] > 2: # Python 3 can't print bytes properly (!?)
@@ -86,7 +86,7 @@ def print(*args, **kwargs):
         if isinstance(arg, unicodeType) else arg
         for arg in args
     ]
-    normal_print(*args, **kwargs)
+    normalPrint(*args, **kwargs)
 
 def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
@@ -179,12 +179,16 @@ def getSongUrl(songPage):
         class_='blog').find('div').find_all('b')[-1].find('a')['href']
     return url
 
-def download(ostName, path="", verbose=False):
+def download(ostName, path=".", makeDirs=True, verbose=False):
     """Download an OST with the ID `ostName` to `path`."""
     if verbose:
         print("Getting song list...")
     songInfos = getFileList(ostName)
     totalSongs = len(songInfos)
+
+    if makeDirs and not os.path.isdir(path):
+        os.makedirs(os.path.abspath(os.path.realpath(path)))
+    
     for songNumber, (name, url) in enumerate(songInfos):
         if not os.path.isfile(os.path.join(path, name)):
             downloadSong(url, path, name, verbose=verbose,
@@ -260,11 +264,6 @@ if __name__ == '__main__':
         except IndexError:
             outPath = ostName
 
-        madeDir = False
-        if not os.path.isdir(outPath):
-            os.mkdir(outPath)
-            madeDir = True
-
         try:
             download(ostName, outPath, verbose=True)
         except NonexistentSoundtrackError:
@@ -284,17 +283,9 @@ if __name__ == '__main__':
                 print("These exist, though:")
                 for name in searchResults:
                     print(name)
-
-            if madeDir:
-                os.rmdir(outPath)
-            return
         except requests.ConnectionError:
             print("Could not connect to The Hylia.")
             print("Make sure you have a working internet connection.")
-
-            if madeDir:
-                os.rmdir(outPath)
-            return
         except KeyboardInterrupt:
             print("Stopped download.")
     
