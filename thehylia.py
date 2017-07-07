@@ -177,6 +177,9 @@ def getSongName(songPage):
 def getSongUrl(songPage):
     url = songPage.find(id='content_container').find('table',
         class_='blog').find('div').find_all('b')[-1].find('a')['href']
+    if url[-3:] != 'mp3' :
+        url = songPage.find(id='content_container').find('table',
+            class_='blog').find('div').find_all('b')[-2].find('a')['href']
     return url
 
 def download(ostName, path="", verbose=False):
