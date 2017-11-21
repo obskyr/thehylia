@@ -10,6 +10,12 @@ from __future__ import unicode_literals
 import os
 import re # For the syntax error in the HTML.
 import sys
+from functools import wraps
+
+try:
+    from urllib.parse import unquote, urljoin
+except ImportError: # Python 2
+    from urlparse import unquote, urljoin
 
 # --- Install prerequisites---
 
@@ -22,7 +28,7 @@ if __name__ == '__main__':
     # User-friendly name, import name, pip specification.
     requiredModules = [
         ['requests', 'requests', 'requests >= 2.0.0, < 3.0.0'],
-        ['Beautiful Soup 4', 'bs4', 'beautifulsoup4 >= 4.0.0, < 5.0.0']
+        ['Beautiful Soup 4', 'bs4', 'beautifulsoup4 >= 4.4.0, < 5.0.0']
     ]
 
     class Silence(object):
@@ -92,10 +98,7 @@ if __name__ == '__main__':
 import requests
 from bs4 import BeautifulSoup
 
-try:
-    from urllib import unquote
-except ImportError: # Python 3
-    from urllib.parse import unquote
+BASE_URL = 'https://anime.thehylia.com/'
 
 # Different printin' for different Pythons.
 normalPrint = print
@@ -117,11 +120,23 @@ def print(*args, **kwargs):
     ]
     normalPrint(*args, **kwargs)
 
+
+def lazy_property(func):
+    attr_name = '_lazy_' + func.__name__
+    @property
+    @wraps(func)
+    def lazy_version(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, func(self))
+        return getattr(self, attr_name)
+    return lazy_version
+
+
 def getSoup(*args, **kwargs):
     r = requests.get(*args, **kwargs)
     content = r.content
 
-    # --- Fix errors in thehylia's HTML
+    # Fix errors in The Hylia's HTML
     removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
     content = removeRe.sub(b'', content)
     
@@ -136,9 +151,46 @@ def getSoup(*args, **kwargs):
         content = content[:badDivEnd + 6] + b'</a>' + content[badDivEnd + 6:]
         
         badDivStart = content.find(badDivTag, badDivStart + badDivLength)
-    # ---
     
     return BeautifulSoup(content, 'html.parser')
+
+
+def strictSplitext(filename):
+    try:
+        dotIndex = filename.rindex('.')
+    except ValueError:
+        return [filename, '']
+    if re.match(r'^[A-Za-z0-9]+$', filename[dotIndex + 1:]):
+        return [filename[:dotIndex], filename[dotIndex:]]
+    else:
+        return [filename, '']
+
+
+def friendlyDownloadFile(file, path, name, index, total, verbose=False):
+    numberStr = "{}/{}".format(
+        str(index).zfill(len(str(total))),
+        str(total)
+    )
+
+    if not os.path.exists(path):
+        if verbose:
+            print("Downloading {}: {}...".format(numberStr, name))
+        for triesElapsed in range(3):
+            if verbose and triesElapsed:
+                print("Couldn't download {}. Trying again...".format(name))
+            try:
+                file.download(path)
+            except requests.ConnectionError:
+                pass
+            else:
+                break
+        else:
+            if verbose:
+                print("Couldn't download {}. Skipping over.".format(name))
+    else:
+        if verbose:
+            print("Skipping over {}: {}. Already exists.".format(numberStr, name))
+
 
 class NonexistentSoundtrackError(Exception):
     def __init__(self, soundtrackId=""):
@@ -151,129 +203,121 @@ class NonexistentSoundtrackError(Exception):
             s = "The soundtrack \"{ost}\" does not exist.".format(ost=self.soundtrackId)
         return s
 
-def getOstContentSoup(soundtrackId):
-    url = "http://anime.thehylia.com/soundtracks/album/" + soundtrackId
-    soup = getSoup(url)
-    contentSoup = soup.find(id='content_container')('div')[1].find('div')
-    if contentSoup.find('p', string="No such album"):
-        raise NonexistentSoundtrackError(soundtrackId)
-    return contentSoup
 
-def getSongPageUrlList(soup):
-    table = soup('table')[0]
-    anchors = table('a')
-    urls = [a['href'] for a in anchors]
-    return urls
-
-def getImageInfo(soup):
-    images = []
-    anchors = soup('a', target='_blank')
-    for a in anchors:
-        url = a['href']
-        name = url.rsplit('/', 1)[1]
-        info = [name, url]
-        images.append(info)
-    return images
-
-def getFileList(soundtrackId):
-    """Get a list of files (songs & images) from the OST with ID `soundtrackId`."""
-    # Each entry is in the format [name, url].
-    soup = getOstContentSoup(soundtrackId)
-    songPageUrls = getSongPageUrlList(soup)
-    songs = [getSongInfo(url) for url in songPageUrls]
-    images = getImageInfo(soup)
-    files = songs + images
-    return files
-
-def getSongInfo(songPageUrl):
-    """Get the file name and URL of the song at `songPageUrl`. Return a list of [songName, songUrl]."""
-    info = []
-    soup = getSoup(songPageUrl)
-    info.append(getSongName(soup))
-    info.append(getSongUrl(soup))
-    return info
-def getSongName(songPage):
-    # Who knows, some obscure soundtrack may use other extensions than mp3/jpg.
-    extensions = ('mp3', 'jpg', 'jpeg', 'ogg', 'aac', 'm4a', 'png')
-    extensionRe = re.compile(r'^.*\.(' + '|'.join(extensions) + r')$',
-        re.IGNORECASE)
-    infoParagraph = songPage.find(id='content_container').find(
-        lambda t: t.name == 'p' and next(t.stripped_strings) == 'Album name:')
-    name = infoParagraph('b')[1].get_text()
-    if not extensionRe.match(name):
-        name = unquote(getSongUrl(songPage).split('/')[-1])
-    return name
-def getSongUrl(songPage):
-    url = songPage.find(id='content_container').find('table',
-        class_='blog').find('div').find_all('b')[-1].find('a')['href']
-    return url
-
-def download(soundtrackId, path=".", makeDirs=True, verbose=False):
-    """Download an OST with the ID `soundtrackId` to `path`."""
-    if verbose:
-        print("Getting song list...")
-    fileInfos = getFileList(soundtrackId)
-    totalFiles = len(fileInfos)
-
-    if makeDirs and not os.path.isdir(path):
-        os.makedirs(os.path.abspath(os.path.realpath(path)))
+class Soundtrack(object):
+    def __init__(self, soundtrackId):
+        self.id = soundtrackId
+        self.url = urljoin(BASE_URL, 'soundtracks/album/' + self.id)
     
-    for fileNumber, (name, url) in enumerate(fileInfos):
-        if not os.path.isfile(os.path.join(path, name)):
-            downloadFile(url, path, name, verbose=verbose,
-                fileNumber=fileNumber + 1, totalFiles=totalFiles)
-        else:
-            if verbose:
-                numberStr = "{}/{}: ".format(
-                    str(fileNumber + 1).zfill(len(str(totalFiles))),
-                    str(totalFiles)
-                )
-                print("Skipping over {}{}. Already exists.".format(
-                    numberStr, name))
-def downloadFile(fileUrl, path, name="song", numTries=3, verbose=False,
-    fileNumber=None, totalFiles=None):
-    """Download a single file at `fileUrl` to `path`."""
-    if verbose:
-        numberStr = ""
-        if fileNumber is not None and totalFiles is not None:
-            numberStr = "{}/{}: ".format(
-                str(fileNumber).zfill(len(str(totalFiles))),
-                str(totalFiles)
-            )
-        print("Downloading {}{}...".format(numberStr, name))
+    def __repr__(self):
+        return "<{}: {}>".format(self.__class__.__name__, self.id)
 
-    tries = 0
-    while tries < numTries:
-        try:
-            if tries and verbose:
-                print("Couldn't download {}. Trying again...".format(name))
-            response = requests.get(fileUrl)
-            break
-        except requests.ConnectionError:
-            tries += 1
-    else:
-        if verbose:
-            print("Couldn't download {}. Skipping over.".format(name))
-        return
+    def _isLoaded(self, property):
+        return hasattr(self, '_lazy_' + property)
 
-    try:
-        with open(os.path.join(path, name), 'wb') as outfile:
-            outfile.write(response.content)
-    except IOError:
-        if verbose:
-            print("Couldn't save {}. Please check your permissions.".format(name))
+    @lazy_property
+    def _contentSoup(self):
+        soup = getSoup(self.url)
+        contentSoup = soup.find(id='content_container')('div')[1].find('div')
+        if contentSoup.find('p', string="No such album"):
+            raise NonexistentSoundtrackError(self.id)
+        return contentSoup
+
+    @lazy_property
+    def songs(self):
+        table = self._contentSoup.find('table')
+        anchors = table('a')
+        urls = [a['href'] for a in anchors]
+        songs = [Song(urljoin(self.url, url)) for url in urls]
+        return songs
+    
+    @lazy_property
+    def images(self):
+        anchors = self._contentSoup('a', target='_blank')
+        urls = [a['href'] for a in anchors]
+        images = [File(urljoin(self.url, url)) for url in urls]
+        return images
+
+    def download(self, path='', makeDirs=True, verbose=False):
+        path = os.path.join(os.getcwd(), path)
+        path = os.path.abspath(os.path.realpath(path))
+
+        if verbose and not self._isLoaded('songs'):
+            print("Getting song list...")
+        files = []
+        for song in self.songs:
+            file = song.files[0]
+            files.append(file)
+        files.extend(self.images)
+        totalFiles = len(files)
+
+        if makeDirs and not os.path.isdir(path):
+            os.makedirs(os.path.abspath(os.path.realpath(path)))
+
+        for fileNumber, file in enumerate(files, 1):
+            filePath = os.path.join(path, file.filename)
+            friendlyDownloadFile(file, filePath, file.filename, fileNumber, totalFiles, verbose)
+
+
+class Song(object):
+    def __init__(self, url):
+        self.url = url
+    
+    def __repr__(self):
+        return "<{}: {}>".format(self.__class__.__name__, self.url)
+    
+    @lazy_property
+    def _soup(self):
+        return getSoup(self.url)
+
+    @lazy_property
+    def name(self):
+        infoParagraph = self._soup.find(id='content_container').find(
+            lambda tag: tag.name == 'p' and next(tag.stripped_strings) == 'Album name:')
+        strippedStrings = infoParagraph.stripped_strings
+        for s in strippedStrings:
+            if s == 'Song name:':
+                break
+        return next(strippedStrings)
+
+    @lazy_property
+    def files(self):
+        table = self._soup.find(id='content_container').find('table', class_='blog')
+        anchors = [b.find('a') for b in table('b', string=re.compile(r'^\s*Download to Computer'))]
+        files = [File(urljoin(self.url, a['href'])) for a in anchors]
+        for file in files:
+            file.filename = strictSplitext(self.name)[0] + os.path.splitext(file.filename)[1]
+        return files
+
+
+class File(object):
+    def __init__(self, url):
+        self.url = url
+        self.filename = unquote(url.rsplit('/', 1)[-1])
+
+    def __repr__(self):
+        return "<{}: {}>".format(self.__class__.__name__, self.url)
+    
+    def download(self, path):
+        response = requests.get(self.url, timeout=10)
+        with open(path, 'wb') as outFile:
+            outFile.write(response.content)
+
+
+def download(soundtrackId, path='', makeDirs=True, verbose=False):
+    Soundtrack(soundtrackId).download(path, makeDirs, verbose)
+
 
 def search(term):
     """Return a list of OST IDs for the search term `term`."""
-    soup = getSoup("http://anime.thehylia.com/search",
-        params={'search': term})
-
+    soup = getSoup(urljoin(BASE_URL, 'search'), params={'search': term})
+    
     headerParagraph = soup.find(id='content_container').find('p',
         string=re.compile(r"^Found [0-9]+ matching albums for \".*\"\.$"))
     anchors = headerParagraph.find_next_sibling('p')('a')
-    soundtracks = [a['href'].split('/')[-1] for a in anchors]
+    soundtrackIds = [a['href'].split('/')[-1] for a in anchors]
 
-    return soundtracks
+    return [Soundtrack(id) for id in soundtrackIds]
 
 # --- And now for the execution. ---
 
@@ -301,8 +345,7 @@ if __name__ == '__main__':
                                          "Examples:\n"
                                          "%(prog)s jumping-flash\n"
                                          "%(prog)s katamari-forever \"music{}Katamari Forever OST\"\n"
-                                         "%(prog)s --search persona\n"
-                                         "%(prog)s --format flac mother-3".format(os.sep),
+                                         "%(prog)s --search persona\n".format(os.sep),
                                          epilog="Hope you enjoy the script!",
                                          formatter_class=ProperHelpFormatter,
                                          add_help=False)
@@ -354,8 +397,8 @@ if __name__ == '__main__':
                 if searchResults:
                     print("Soundtracks found (to download, "
                           "run \"{} soundtrack-name\"):".format(script_name))
-                    for name in searchResults:
-                        print(name)
+                    for soundtrack in searchResults:
+                        print(soundtrack.id)
                 else:
                     print("No soundtracks found.")
             else:
@@ -368,8 +411,8 @@ if __name__ == '__main__':
                     if searchResults: # aww yeah we gon' do some searchin'
                         print()
                         print("These exist, though:")
-                        for name in searchResults:
-                            print(name)
+                        for soundtrack in searchResults:
+                            print(soundtrack.id)
                 except KeyboardInterrupt:
                     print("Stopped download.")
         except requests.ConnectionError:
@@ -379,7 +422,7 @@ if __name__ == '__main__':
             print()
             print("An unexpected error occurred! "
                   "If it isn't too much to ask, please report to "
-                  "https://github.com/obskyr/thehylia.")
+                  "https://github.com/obskyr/thehylia/issues.")
             print("Attach the following error message:")
             print()
             raise e
