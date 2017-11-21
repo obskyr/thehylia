@@ -166,11 +166,24 @@ def strictSplitext(filename):
         return [filename, '']
 
 
+def getAppropriateFile(song, formatOrder):
+    if formatOrder is None:
+        return song.files[0]
+    
+    for extension in formatOrder:
+        for file in song.files:
+            if os.path.splitext(file.filename)[1][1:].lower() == extension:
+                return file
+    
+    return song.files[0]
+
+
 def friendlyDownloadFile(file, path, name, index, total, verbose=False):
     numberStr = "{}/{}".format(
         str(index).zfill(len(str(total))),
         str(total)
     )
+    path = os.path.join(path, file.filename)
 
     if not os.path.exists(path):
         if verbose:
@@ -224,6 +237,17 @@ class Soundtrack(object):
         return contentSoup
 
     @lazy_property
+    def availableFormats(self):
+        table = self._contentSoup.find('table')
+        header = table.find('tr')
+        headings = [td.get_text(strip=True) for td in header('td')]
+        if headings[0]:
+            return ['mp3']
+        formats = [s.lower() for s in headings if s not in {"", "Song Name", "Download", "Size"}]
+        formats = formats or ['mp3']
+        return formats
+
+    @lazy_property
     def songs(self):
         table = self._contentSoup.find('table')
         anchors = table('a')
@@ -238,16 +262,23 @@ class Soundtrack(object):
         images = [File(urljoin(self.url, url)) for url in urls]
         return images
 
-    def download(self, path='', makeDirs=True, verbose=False):
+    def download(self, path='', makeDirs=True, formatOrder=None, verbose=False):
         path = os.path.join(os.getcwd(), path)
         path = os.path.abspath(os.path.realpath(path))
+        if formatOrder:
+            formatOrder = [extension.lower() for extension in formatOrder]
+            if not set(self.availableFormats) & set(formatOrder):
+                if verbose:
+                    print("The soundtrack \"{}\" does not seem to be available in {}.".format(
+                          self.id,
+                          "that format" if len(formatOrder) == 1 else "any of those formats"))
+                return
 
         if verbose and not self._isLoaded('songs'):
             print("Getting song list...")
         files = []
         for song in self.songs:
-            file = song.files[0]
-            files.append(file)
+            files.append(getAppropriateFile(song, formatOrder))
         files.extend(self.images)
         totalFiles = len(files)
 
@@ -255,8 +286,7 @@ class Soundtrack(object):
             os.makedirs(os.path.abspath(os.path.realpath(path)))
 
         for fileNumber, file in enumerate(files, 1):
-            filePath = os.path.join(path, file.filename)
-            friendlyDownloadFile(file, filePath, file.filename, fileNumber, totalFiles, verbose)
+            friendlyDownloadFile(file, path, file.filename, fileNumber, totalFiles, verbose)
 
 
 class Song(object):
@@ -304,8 +334,8 @@ class File(object):
             outFile.write(response.content)
 
 
-def download(soundtrackId, path='', makeDirs=True, verbose=False):
-    Soundtrack(soundtrackId).download(path, makeDirs, verbose)
+def download(soundtrackId, path='', makeDirs=True, formatOrder=None, verbose=False):
+    Soundtrack(soundtrackId).download(path, makeDirs, formatOrder, verbose)
 
 
 def search(term):
@@ -324,7 +354,19 @@ def search(term):
 if __name__ == '__main__':
     import argparse
 
+    SCRIPT_NAME = os.path.split(sys.argv[0])[-1]
+
     # Tiny details!
+    class KindArgumentParser(argparse.ArgumentParser):
+        def error(self, message):
+            print("No soundtrack specified! As the first parameter, use the name the soundtrack uses in its URL.")
+            print("If you want to, you can also specify an output directory as the second parameter.")
+            print("You can also search for soundtracks by using your search term as parameter - as long as it's not an existing soundtrack.")
+            print()
+            print("For detailed help and more options, run \"{} --help\".".format(SCRIPT_NAME))
+            sys.exit(2)
+
+    # More tiny details!
     class ProperHelpFormatter(argparse.RawTextHelpFormatter):
         def add_usage(self, usage, actions, groups, prefix=None):
             if prefix is None:
@@ -332,25 +374,17 @@ if __name__ == '__main__':
             return super(ProperHelpFormatter, self).add_usage(usage, actions, groups, prefix)
 
     def doIt(): # Only in a function to be able to stop after errors, really.
-        script_name = os.path.split(sys.argv[0])[-1]
-        if len(sys.argv) == 1:
-            print("No soundtrack specified! As the first parameter, use the name the soundtrack uses in its URL.")
-            print("If you want to, you can also specify an output directory as the second parameter.")
-            print("You can also search for soundtracks by using your search term as parameter - as long as it's not an existing soundtrack.")
-            print()
-            print("For detailed help and more options, run \"{} --help\".".format(script_name))
-            return
-
-        parser = argparse.ArgumentParser(description="Download entire soundtracks from The Hylia.\n\n"
-                                         "Examples:\n"
-                                         "%(prog)s jumping-flash\n"
-                                         "%(prog)s katamari-forever \"music{}Katamari Forever OST\"\n"
-                                         "%(prog)s --search persona\n".format(os.sep),
-                                         epilog="Hope you enjoy the script!",
-                                         formatter_class=ProperHelpFormatter,
-                                         add_help=False)
+        parser = KindArgumentParser(description="Download entire soundtracks from The Hylia.\n\n"
+                                    "Examples:\n"
+                                    "%(prog)s jumping-flash\n"
+                                    "%(prog)s katamari-forever \"music{}Katamari Forever OST\"\n"
+                                    "%(prog)s --search persona\n"
+                                    "%(prog)s --format flac mother-3".format(os.sep),
+                                    epilog="Hope you enjoy the script!",
+                                    formatter_class=ProperHelpFormatter,
+                                    add_help=False)
         
-        try: # More tiny details!
+        try: # Even more tiny details!
             parser._positionals.title = "Positional arguments"
             parser._optionals.title = "Optional arguments"
         except AttributeError:
@@ -363,10 +397,14 @@ if __name__ == '__main__':
         parser.add_argument('outPath', metavar='download directory', nargs='?',
                             help="The directory to download the soundtrack to.\n"
                             "Defaults to creating a new directory with the soundtrack ID as its name.")
-        parser.add_argument('trailingArguments', nargs='*', help=argparse.SUPPRESS)
+        parser.add_argument('trailingArguments', nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
         
         parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                             help="Show this help and exit.")
+        parser.add_argument('-f', '--format', default=None, metavar="...",
+                            help="The file format in which to download the soundtrack (e.g. \"flac\").\n"
+                            "You can also specify a comma-separated list of which formats to try\n"
+                            "(for example, \"flac,mp3\": download FLAC if available, otherwise MP3).")
         parser.add_argument('-s', '--search', action='store_true',
                             help="Always search, regardless of whether the specified soundtrack ID exists or not.")
 
@@ -391,19 +429,24 @@ if __name__ == '__main__':
             searchTerm = ' '.join(searchTerm)
         searchTerm = searchTerm.replace('-', ' ')
 
+        formatOrder = arguments.format
+        if formatOrder:
+            formatOrder = re.split(r',\s*', formatOrder)
+            formatOrder = [extension.lstrip('.').lower() for extension in formatOrder]
+
         try:
             if onlySearch:
                 searchResults = search(searchTerm)
                 if searchResults:
                     print("Soundtracks found (to download, "
-                          "run \"{} soundtrack-name\"):".format(script_name))
+                          "run \"{} soundtrack-name\"):".format(SCRIPT_NAME))
                     for soundtrack in searchResults:
                         print(soundtrack.id)
                 else:
                     print("No soundtracks found.")
             else:
                 try:
-                    download(soundtrack, outPath, verbose=True)
+                    download(soundtrack, outPath, formatOrder=formatOrder, verbose=True)
                 except NonexistentSoundtrackError:
                     searchResults = search(searchTerm)
                     print("\nThe soundtrack \"{}\" does not seem to exist.".format(soundtrack))
