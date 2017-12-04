@@ -193,7 +193,7 @@ def friendlyDownloadFile(file, path, name, index, total, verbose=False):
                 print("Couldn't download {}. Trying again...".format(name))
             try:
                 file.download(path)
-            except requests.ConnectionError:
+            except (requests.ConnectionError, requests.Timeout):
                 pass
             else:
                 break
@@ -498,7 +498,7 @@ if __name__ == '__main__':
                             print(soundtrack.id)
                 except KeyboardInterrupt:
                     print("Stopped download.")
-        except requests.ConnectionError:
+        except (requests.ConnectionError, requests.Timeout):
             print("Could not connect to The Hylia.")
             print("Make sure you have a working internet connection.")
         except Exception as e:
