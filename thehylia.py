@@ -102,21 +102,14 @@ from bs4 import BeautifulSoup
 
 BASE_URL = 'https://anime.thehylia.com/'
 
+
 # Different printin' for different Pythons.
 normalPrint = print
-def print(*args, **kwargs):
+def unicodePrint(*args, **kwargs):
+    unicodeType = str if sys.version_info[0] > 2 else unicode
     encoding = sys.stdout.encoding or 'utf-8'
-    if sys.version_info[0] > 2: # Python 3 can't print bytes properly (!?)
-        # This lambda is ACTUALLY a "reasonable"
-        # way to print Unicode in Python 3. What.
-        printEncode = lambda s: s.encode(encoding, 'replace').decode(encoding)
-        unicodeType = str
-    else:
-        printEncode = lambda s: s.encode(encoding, 'replace')
-        unicodeType = unicode
-    
     args = [
-        printEncode(arg)
+        arg.encode(encoding, 'replace').decode(encoding)
         if isinstance(arg, unicodeType) else arg
         for arg in args
     ]
@@ -192,10 +185,10 @@ def friendlyDownloadFile(file, path, name, index, total, verbose=False):
 
     if not os.path.exists(path):
         if verbose:
-            print("Downloading {}: {}...".format(numberStr, name))
+            unicodePrint("Downloading {}: {}...".format(numberStr, name))
         for triesElapsed in range(3):
             if verbose and triesElapsed:
-                print("Couldn't download {}. Trying again...".format(name))
+                unicodePrint("Couldn't download {}. Trying again...".format(name))
             try:
                 file.download(path)
             except (requests.ConnectionError, requests.Timeout):
@@ -204,10 +197,10 @@ def friendlyDownloadFile(file, path, name, index, total, verbose=False):
                 break
         else:
             if verbose:
-                print("Couldn't download {}. Skipping over.".format(name))
+                unicodePrint("Couldn't download {}. Skipping over.".format(name))
     else:
         if verbose:
-            print("Skipping over {}: {}. Already exists.".format(numberStr, name))
+            unicodePrint("Skipping over {}: {}. Already exists.".format(numberStr, name))
 
 
 class NonexistentSoundtrackError(Exception):
