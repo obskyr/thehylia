@@ -116,15 +116,15 @@ def unicodePrint(*args, **kwargs):
     normalPrint(*args, **kwargs)
 
 
-def lazy_property(func):
-    attr_name = '_lazy_' + func.__name__
+def lazyProperty(func):
+    attrName = '_lazy_' + func.__name__
     @property
     @wraps(func)
-    def lazy_version(self):
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, func(self))
-        return getattr(self, attr_name)
-    return lazy_version
+    def lazyVersion(self):
+        if not hasattr(self, attrName):
+            setattr(self, attrName, func(self))
+        return getattr(self, attrName)
+    return lazyVersion
 
 
 def getSoup(*args, **kwargs):
@@ -236,7 +236,7 @@ class Soundtrack(object):
     def _isLoaded(self, property):
         return hasattr(self, '_lazy_' + property)
 
-    @lazy_property
+    @lazyProperty
     def _contentSoup(self):
         soup = getSoup(self.url)
         contentSoup = soup.find(id='content_container')('div')[1].find('div')
@@ -244,7 +244,7 @@ class Soundtrack(object):
             raise NonexistentSoundtrackError(self.id)
         return contentSoup
 
-    @lazy_property
+    @lazyProperty
     def availableFormats(self):
         table = self._contentSoup.find('table')
         header = table.find('tr')
@@ -255,7 +255,7 @@ class Soundtrack(object):
         formats = formats or ['mp3']
         return formats
 
-    @lazy_property
+    @lazyProperty
     def songs(self):
         table = self._contentSoup.find('table')
         anchors = table('a')
@@ -263,7 +263,7 @@ class Soundtrack(object):
         songs = [Song(urljoin(self.url, url)) for url in urls]
         return songs
     
-    @lazy_property
+    @lazyProperty
     def images(self):
         anchors = self._contentSoup('a', target='_blank')
         urls = [a['href'] for a in anchors]
@@ -323,11 +323,11 @@ class Song(object):
     def __repr__(self):
         return "<{}: {}>".format(self.__class__.__name__, self.url)
     
-    @lazy_property
+    @lazyProperty
     def _soup(self):
         return getSoup(self.url)
 
-    @lazy_property
+    @lazyProperty
     def name(self):
         infoParagraph = self._soup.find(id='content_container').find(
             lambda tag: tag.name == 'p' and next(tag.stripped_strings) == 'Album name:')
@@ -337,7 +337,7 @@ class Song(object):
                 break
         return next(strippedStrings)
 
-    @lazy_property
+    @lazyProperty
     def files(self):
         table = self._soup.find(id='content_container').find('table', class_='blog')
         anchors = [b.find('a') for b in table('b', string=re.compile(r'^\s*Download to Computer'))]
