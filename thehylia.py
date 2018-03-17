@@ -335,13 +335,18 @@ class Song(object):
         for s in strippedStrings:
             if s == 'Song name:':
                 break
-        return next(strippedStrings)
+        name = next(strippedStrings)
+        return name or self._files_with_url_filenames[0].filename
+
+    @lazyProperty
+    def _files_with_url_filenames(self):
+        table = self._soup.find(id='content_container').find('table', class_='blog')
+        anchors = [b.find('a') for b in table('b', string=re.compile(r'^\s*Download to Computer'))]
+        return [File(urljoin(self.url, a['href'])) for a in anchors]
 
     @lazyProperty
     def files(self):
-        table = self._soup.find(id='content_container').find('table', class_='blog')
-        anchors = [b.find('a') for b in table('b', string=re.compile(r'^\s*Download to Computer'))]
-        files = [File(urljoin(self.url, a['href'])) for a in anchors]
+        files = self._files_with_url_filenames
         for file in files:
             file.filename = strictSplitext(self.name)[0] + os.path.splitext(file.filename)[1]
         return files
