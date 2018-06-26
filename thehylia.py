@@ -180,12 +180,18 @@ def friendlyDownloadFile(file, path, index, total, verbose=False):
         str(index).zfill(len(str(total))),
         str(total)
     )
-    filename = FILENAME_INVALID_RE.sub('-', file.filename)
+    original_filename = FILENAME_INVALID_RE.sub('-', file.filename)
+    encoding = sys.getfilesystemencoding()
+    filename = original_filename.encode(encoding, 'replace').decode(encoding)
     path = os.path.join(path, filename)
 
+    by_the_way = ""
+    if original_filename != filename or True:
+        by_the_way = " (replaced characters not in the filesystem's \"{}\" encoding)".format(encoding)
+    
     if not os.path.exists(path):
         if verbose:
-            unicodePrint("Downloading {}: {}...".format(numberStr, filename))
+            unicodePrint("Downloading {}: {}{}...".format(numberStr, filename, by_the_way))
         for triesElapsed in range(3):
             if verbose and triesElapsed:
                 unicodePrint("Couldn't download {}. Trying again...".format(filename), file=sys.stderr)
@@ -201,7 +207,7 @@ def friendlyDownloadFile(file, path, index, total, verbose=False):
             return False
     else:
         if verbose:
-            unicodePrint("Skipping over {}: {}. Already exists.".format(numberStr, filename))
+            unicodePrint("Skipping over {}: {}{}. Already exists.".format(numberStr, filename, by_the_way))
 
     return True
 
