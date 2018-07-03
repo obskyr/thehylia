@@ -42,6 +42,26 @@ You will also need to have [pip](https://pip.readthedocs.org/en/latest/installin
 
 For more detailed information, try running `thehylia.py --help`!
 
+## Scripts
+[@RaitaroH](https://github.com/RaitaroH) wrote the scripts. Put them in `~/bin`, use `chmod +x` to make them executable. Change the path to the python script and the download directory as needed.
+
+The scripts are as follows:
++ hyliad - it can download from given a link
+
+```
+hylia https://anime.thehylia.com/soundtracks/album/berserk-2016-ed2-single-issai-wa-monogatari
+```
+
++ hyliafzf - it will show you the search results. Choose what you want, hit enter, and see the download will begin. **Obviously** install [fzf](https://github.com/junegunn/fzf). Looks like this:
+![](https://i.imgur.com/hrLi41r.png)
+
++ hyliabatch - you provide a search pattern, after that everything that is found will be downloaded.
+
+```
+hyliabatch franxx
+```
+
+Also, you can have some alias like so: `alias hylias="python ~/github/thehylia/thehylia.py --search"` for easier searches. 
 ## As a module
 
 `thehylia.py` requires two non-standard modules: [requests](https://pypi.python.org/pypi/requests) and [beautifulsoup4](https://pypi.python.org/pypi/beautifulsoup4). Just run a `pip install` on them (with [pip](https://pip.readthedocs.org/en/latest/installing.html)), or just run `thehylia.py` on its own once and it'll install them for you.
