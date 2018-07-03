@@ -24,7 +24,7 @@ class Silence(object):
         self._stderr = sys.stderr
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = open(os.devnull, 'w')
-    
+
     def __exit__(self, *_):
         sys.stdout = self._stdout
         sys.stderr = self._stderr
@@ -68,7 +68,7 @@ if __name__ == '__main__':
         for module in modules:
             if verbose:
                 print("Installing {}...".format(module[0]))
-            
+
             try:
                 install(module[2])
             except OSError as e:
@@ -144,19 +144,19 @@ def getSoup(*args, **kwargs):
     # Fix errors in The Hylia's HTML
     removeRe = re.compile(br"^</td>\s*$", re.MULTILINE)
     content = removeRe.sub(b'', content)
-    
+
     badDivTag = b'<div style="padding: 7px; float: left;">'
     badDivLength = len(badDivTag)
     badDivStart = content.find(badDivTag)
     while badDivStart != -1:
         badAEnd = content.find(b'</a>', badDivStart)
         content = content[:badAEnd] + content[badAEnd + 4:]
-        
+
         badDivEnd = content.find(b'</div>', badDivStart)
         content = content[:badDivEnd + 6] + b'</a>' + content[badDivEnd + 6:]
-        
+
         badDivStart = content.find(badDivTag, badDivStart + badDivLength)
-    
+
     # BS4 outputs unsuppressable error messages when it can't
     # decode the input bytes properly. This... suppresses them.
     with Silence():
@@ -166,12 +166,12 @@ def getSoup(*args, **kwargs):
 def getAppropriateFile(song, formatOrder):
     if formatOrder is None:
         return song.files[0]
-    
+
     for extension in formatOrder:
         for file in song.files:
             if os.path.splitext(file.filename)[1][1:].lower() == extension:
                 return file
-    
+
     return song.files[0]
 
 
@@ -188,7 +188,7 @@ def friendlyDownloadFile(file, path, index, total, verbose=False):
     byTheWay = ""
     if original_filename != filename:
         byTheWay = " (replaced characters not in the filesystem's \"{}\" encoding)".format(encoding)
-    
+
     if not os.path.exists(path):
         if verbose:
             unicodePrint("Downloading {}: {}{}...".format(numberStr, filename, byTheWay))
@@ -226,7 +226,7 @@ class NonexistentSoundtrackError(Exception):
 
 class Soundtrack(object):
     """A The Hylia soundtrack. Initialize with a soundtrack ID.
-    
+
     Properties:
     * id:     The soundtrack's unique ID, used at the end of its URL.
     * url:    The full URL of the soundtrack.
@@ -238,7 +238,7 @@ class Soundtrack(object):
     def __init__(self, soundtrackId):
         self.id = soundtrackId
         self.url = urljoin(BASE_URL, 'soundtracks/album/' + self.id)
-    
+
     def __repr__(self):
         return "<{}: {}>".format(self.__class__.__name__, self.id)
 
@@ -271,7 +271,7 @@ class Soundtrack(object):
         urls = [a['href'] for a in anchors]
         songs = [Song(urljoin(self.url, url)) for url in urls]
         return songs
-    
+
     @lazyProperty
     def images(self):
         anchors = self._contentSoup('a', target='_blank')
@@ -281,13 +281,13 @@ class Soundtrack(object):
 
     def download(self, path='', makeDirs=True, formatOrder=None, verbose=False):
         """Download the soundtrack to the directory specified by `path`!
-        
+
         Create any directories that are missing if `makeDirs` is set to True.
 
         Set `formatOrder` to a list of file extensions to specify the order
         in which to prefer file formats. If set to ['flac', 'mp3'], for
         example, FLAC files will be downloaded if available, and otherwise MP3.
-        
+
         Print progress along the way if `verbose` is set to True.
 
         Return True if all files were downloaded successfully, False if not.
@@ -318,12 +318,12 @@ class Soundtrack(object):
         for fileNumber, file in enumerate(files, 1):
             if not friendlyDownloadFile(file, path, fileNumber, totalFiles, verbose):
                 success = False
-        
+
         return success
 
 class Song(object):
     """A song on The Hylia.
-    
+
     Properties:
     * url:   The full URL of the song page.
     * name:  The name of the song.
@@ -333,10 +333,10 @@ class Song(object):
 
     def __init__(self, url):
         self.url = url
-    
+
     def __repr__(self):
         return "<{}: {}>".format(self.__class__.__name__, self.url)
-    
+
     @lazyProperty
     def _soup(self):
         return getSoup(self.url)
@@ -361,7 +361,7 @@ class Song(object):
 
 class File(object):
     """A file belonging to a soundtrack on KHInsider.
-    
+
     Properties:
     * url:      The full URL of the file.
     * filename: The file's... filename. You got it.
@@ -373,7 +373,7 @@ class File(object):
 
     def __repr__(self):
         return "<{}: {}>".format(self.__class__.__name__, self.url)
-    
+
     def download(self, path):
         """Download the file to `path`."""
         response = requests.get(self.url, timeout=10)
@@ -391,7 +391,7 @@ def download(soundtrackId, path='', makeDirs=True, formatOrder=None, verbose=Fal
 def search(term):
     """Return a list of Soundtrack objects for the search term `term`."""
     soup = getSoup(urljoin(BASE_URL, 'search'), params={'search': term})
-    
+
     headerParagraph = soup.find(id='content_container').find('p',
         string=re.compile(r"^Found [0-9]+ matching albums for \".*\"\.$"))
     anchors = headerParagraph.find_next_sibling('p')('a')
@@ -433,7 +433,7 @@ if __name__ == '__main__':
                                     epilog="Hope you enjoy the script!",
                                     formatter_class=ProperHelpFormatter,
                                     add_help=False)
-        
+
         try: # Even more tiny details!
             parser._positionals.title = "Positional arguments"
             parser._optionals.title = "Optional arguments"
@@ -448,7 +448,7 @@ if __name__ == '__main__':
                             help="The directory to download the soundtrack to.\n"
                             "Defaults to creating a new directory with the soundtrack ID as its name.")
         parser.add_argument('trailingArguments', nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
-        
+
         parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                             help="Show this help and exit.")
         parser.add_argument('-f', '--format', default=None, metavar="...",
@@ -488,8 +488,8 @@ if __name__ == '__main__':
             if onlySearch:
                 searchResults = search(searchTerm)
                 if searchResults:
-                    print("Soundtracks found (to download, "
-                          "run \"{} soundtrack-name\"):".format(SCRIPT_NAME))
+                    #  print("Soundtracks found (to download, "
+                            #  "run \"{} soundtrack-name\"):".format(SCRIPT_NAME))
                     for soundtrack in searchResults:
                         print(soundtrack.id)
                 else:
@@ -524,7 +524,7 @@ if __name__ == '__main__':
             print("Attach the following error message:", file=sys.stderr)
             print(file=sys.stderr)
             raise
-        
+
         return 0
-    
+
     sys.exit(doIt())

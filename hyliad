@@ -1,0 +1,5 @@
+#!/bin/bash
+link=`echo "$1" | rev | cut -d \/ -f1 | rev` ;
+if [[ "$link" != "" ]]; then
+    python ~/github/thehylia/thehylia.py "$link" ~/Desktop/"$link"
+fi
