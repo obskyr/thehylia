@@ -28,7 +28,7 @@ Just run `thehylia.py` from the command line with the sole parameter being the s
 
 If you want, you can also add another parameter as the output folder, but that's optional.
 
-You can also download FLAC versions of soundtracks (if available) as following:
+You can also download other file formats (if available), like FLAC or OGG, as following:
 
 ```cmd
 khinsider.py --format flac ano-natsu-de-matteru-op-single-sign
