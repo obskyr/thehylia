@@ -1,0 +1,9 @@
+#!/bin/bash
+array=($(python ~/github/thehylia/thehylia.py --search "$1" | tr '\r\n' ' ' ))
+for (( k=0; k<=${#array[@]} ; k++ )); do
+    if [[ "${array[$k]}" != "" ]]; then
+        echo
+        echo 'Now downloading "${array[$k]}"'
+        python ~/github/thehylia/thehylia.py "${array[$k]}" ~/Desktop/"${array[$k]}"
+    fi
+done

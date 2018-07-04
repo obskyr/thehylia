@@ -1,0 +1,5 @@
+#!/bin/bash
+link=`python ~/github/thehylia/thehylia.py --search "$1" | fzf` ;
+if [[ "$link" != "" ]]; then
+    python ~/github/thehylia/thehylia.py "$link" ~/Desktop/"$link"
+fi
