@@ -347,6 +347,40 @@ class Soundtrack(object):
                 success = False
         
         return success
+    
+    def dump(self, filename=None, formatOrder=None, varbose=False):
+        """Dump download links of for the soundtrack to the file specified by `filename`!
+
+        Set `formatOrder` to a list of file extensions to specify the order
+        in which to prefer file formats. If set to ['flac', 'ogg', 'mp3'], for
+        example, FLAC files will be downloaded if available - if not, Ogg
+        files, and if those aren't available, MP3 files.
+        
+        Print progress along the way if `verbose` is set to True.
+
+        Return True if it completes successfully, False if not.
+        """
+        if formatOrder:
+            formatOrder = [extension.lower() for extension in formatOrder]
+            if not set(self.availableFormats) & set(formatOrder):
+                raise NonexistentFormatsError(self, formatOrder)
+        if varbose and not self._isLoaded('songs'):
+            print("Getting song list...")
+        files = []
+        for song in self.songs:
+            files.append(song.url)
+        for image in self.images:
+            files.append(image.url)
+
+        if not filename.endswith('.txt'):
+            filename += '.txt'
+        try:
+            with open(filename, 'w') as f:
+                f.writelines('\n'.join(files))
+            return True
+        except IOError:
+            return False
+
 
 class Song(object):
     """A song on The Hylia.
@@ -428,6 +462,11 @@ def download(soundtrackId, path='', makeDirs=True, formatOrder=None, verbose=Fal
     """
     return Soundtrack(soundtrackId).download(path, makeDirs, formatOrder, verbose)
 
+def dump(soundtrackId, filename=None, formatOrder=None, verbose=False):
+    """Dump download links for the soundtrack with the ID `soundtrackId`.
+    See Soundtrack.dump for more information.
+    """
+    return Soundtrack(soundtrackId).dump(filename, formatOrder, verbose)
 
 class SearchError(ThehyliaError):
     pass
@@ -476,7 +515,8 @@ if __name__ == '__main__':
                                     "%(prog)s jumping-flash\n"
                                     "%(prog)s katamari-forever \"music{}Katamari Forever OST\"\n"
                                     "%(prog)s --search persona\n"
-                                    "%(prog)s --format flac mother-3".format(os.sep),
+                                    "%(prog)s --format flac mother-3\n"
+                                    "%(prog)s --dump katamari-forever links.txt".format(os.sep),
                                     epilog="Hope you enjoy the script!",
                                     formatter_class=ProperHelpFormatter,
                                     add_help=False)
@@ -505,6 +545,8 @@ if __name__ == '__main__':
                             "(for example, \"flac,mp3\": download FLAC if available, otherwise MP3).")
         parser.add_argument('-s', '--search', action='store_true',
                             help="Always search, regardless of whether the specified soundtrack ID exists or not.")
+        parser.add_argument('-d', '--dump', action="store_true",
+                            help="Dump links to a file. Skip downloading")
 
         arguments = parser.parse_args()
 
@@ -520,6 +562,8 @@ if __name__ == '__main__':
         soundtrack = m.group('soundtrack') if m is not None else soundtrack
 
         outPath = arguments.outPath if arguments.outPath is not None else soundtrack
+
+        onlyDump = arguments.dump
 
         # I think this makes the most sense for people who aren't used to the
         # command line - this'll yield useful results even if you just type
@@ -554,10 +598,13 @@ if __name__ == '__main__':
                         print("No soundtracks found.")
             else:
                 try:
-                    success = download(soundtrack, outPath, formatOrder=formatOrder, verbose=True)
-                    if not success:
-                        print("\nNot all files could be downloaded.", file=sys.stderr)
-                        return 1
+                    if onlyDump:
+                        success = dump(soundtrack, filename=outPath, formatOrder=None, verbose=False)
+                    else:
+                        success = download(soundtrack, outPath, formatOrder=formatOrder, verbose=True)
+                        if not success:
+                            print("\nNot all files could be downloaded.", file=sys.stderr)
+                            return 1
                 except NonexistentSoundtrackError:
                     try:
                         searchResults = search(searchTerm)
@@ -611,3 +658,4 @@ if __name__ == '__main__':
         return 0
     
     sys.exit(doIt())
+
